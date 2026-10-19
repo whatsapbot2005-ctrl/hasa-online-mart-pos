@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<htmlqqqlang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#155eef">
+  <title>HASA Online Mart | POS</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">H</div>
+      <div><h1>HASA Online Mart</h1><p>Point of Sale System</p></div>
+    </div>
+    <button class="secondary" id="exportBtn">Backup Data</button>
+  </header>
+
+  <main class="layout">
+    <section class="stats">
+      <article class="stat"><span>Today's Sales</span><strong id="todaySales">Rs. 0.00</strong></article>
+      <article class="stat"><span>Products</span><strong id="productCount">0</strong></article>
+      <article class="stat"><span>Low Stock Items</span><strong id="lowStock">0</strong></article>
+      <article class="stat"><span>Today's Gross Profit*</span><strong id="todayProfit">Rs. 0.00</strong></article>
+    </section>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="sales">New Sale</button>
+      <button class="tab" data-tab="products">Products & Stock</button>
+      <button class="tab" data-tab="history">Sales History</button>
+    </nav>
+
+    <section class="panel tab-panel" id="salesPanel">
+      <div class="section-head"><div><h2>New Sale</h2><p>Search products and add them to the cart.</p></div></div>
+      <div class="sale-grid">
+        <div>
+          <label for="productSearch">Search products</label>
+          <input id="productSearch" placeholder="Enter product name or code...">
+          <div id="productResults" class="product-results"></div>
+        </div>
+        <div class="cart-box">
+          <h3>Current Cart</h3>
+          <div id="cartItems" class="cart-items"><p class="empty">Your cart is empty.</p></div>
+          <div class="total-row"><span>Total</span><strong id="cartTotal">Rs. 0.00</strong></div>
+          <label for="paymentMethod">Payment method</label>
+          <select id="paymentMethod"><option>Cash</option><option>Bank Transfer</option><option>Online Payment</option></select>
+          <button class="primary full" id="completeSale">Complete Sale</button>
+        </div>
+      </div>
+      <div id="receipt" class="receipt hidden"></div>
+      <p class="note">*Gross profit is calculated from the buying and selling prices entered. This is a local starter version; data is saved in this browser on this device.</p>
+    </section>
+
+    <section class="panel tab-panel hidden" id="productsPanel">
+      <div class="section-head"><div><h2>Products & Stock</h2><p>Add products manually. Product photos are not required.</p></div></div>
+      <form id="productForm" class="form-grid">
+        <input type="hidden" id="editId">
+        <div><label for="pName">Product name *</label><input id="pName" required maxlength="100" placeholder="e.g. USB-C Charger"></div>
+        <div><label for="pCode">Product code (optional)</label><input id="pCode" maxlength="50" placeholder="e.g. HASA001"></div>
+        <div><label for="pBuy">Buying price (Rs.) *</label><input id="pBuy" required type="number" min="0" step="0.01" placeholder="0.00"></div>
+        <div><label for="pSell">Selling price (Rs.) *</label><input id="pSell" required type="number" min="0" step="0.01" placeholder="0.00"></div>
+        <div><label for="pStock">Stock quantity *</label><input id="pStock" required type="number" min="0" step="1" placeholder="0"></div>
+        <div class="form-actions"><button class="primary" type="submit" id="saveProduct">Save Product</button><button class="secondary hidden" type="button" id="cancelEdit">Cancel Edit</button></div>
+      </form>
+      <div class="table-wrap"><table><thead><tr><th>Product</th><th>Code</th><th>Buying</th><th>Selling</th><th>Stock</th><th>Actions</th></tr></thead><tbody id="productTable"></tbody></table></div>
+    </section>
+
+    <section class="panel tab-panel hidden" id="historyPanel">
+      <div class="section-head"><div><h2>Sales History</h2><p>Review completed sales. Receipts are shown on screen only.</p></div></div>
+      <div class="table-wrap"><table><thead><tr><th>Date / Time</th><th>Sale ID</th><th>Items</th><th>Payment</th><th>Total</th><th>Gross Profit</th><th>View</th></tr></thead><tbody id="historyTable"></tbody></table></div>
+    </section>
+    <footer>HASA Online Mart • POS System • Local starter version</footer>
+  </main>
+  <div id="toast" class="toast hidden" role="status"></div>
+  <script src="app.js"></script>
+</body>
+</html>
