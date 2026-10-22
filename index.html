@@ -8,6 +8,20 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <section id="loginScreen" class="panel" style="max-width:400px;margin:60px auto;padding:25px;">
+    <h2>HASA Online Mart Login</h2>
+    <form id="loginForm">
+      <label for="loginEmail">Email</label>
+      <input id="loginEmail" type="email" required placeholder="Enter your email">
+
+      <label for="loginPassword">Password</label>
+      <input id="loginPassword" type="password" required placeholder="Enter your password">
+
+      <button id="loginButton" class="primary full" type="submit">Login</button>
+      <p id="loginError" style="color:red;"></p>
+    </form>
+  </section>
+  <div id="appContent" class="hidden">
   <header class="topbar">
     <div class="brand">
       <div class="logo">H</div>
