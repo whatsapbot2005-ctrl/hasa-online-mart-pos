@@ -26,7 +26,7 @@ import {
 ================================== */
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBDLntgYozFdfZd8AcB6cVX4vB_L_Xe4AzI",
+  apiKey: "AIzaSyBDLntgYozFdfZd8AcB6cVX4BvL_Xe4AzI",
   authDomain: "hasa-online-mart.firebaseapp.com",
   projectId: "hasa-online-mart",
   storageBucket: "hasa-online-mart.firebasestorage.app",
