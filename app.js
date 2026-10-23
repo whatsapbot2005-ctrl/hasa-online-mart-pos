@@ -1,4 +1,6 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
+import {
+  initializeApp
+} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 
 import {
   getAuth,
@@ -18,318 +20,517 @@ import {
   runTransaction
 } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 
+
 /* ==================================
    FIREBASE CONFIGURATION
 ================================== */
 
 const firebaseConfig = {
-  apiKey: "// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyBDLntgYozFdfZd8AcB6cVX4BvL_Xe4AzI",
+  apiKey: "AIzaSyBDLntgYozFdfZd8AcB6cVX4vB_L_Xe4AzI",
   authDomain: "hasa-online-mart.firebaseapp.com",
   projectId: "hasa-online-mart",
   storageBucket: "hasa-online-mart.firebasestorage.app",
   messagingSenderId: "824071240289",
   appId: "1:824071240289:web:13d37bff858155535dc820",
   measurementId: "G-JXDVEHTEDP"
-};",
-  authDomain: "hasa-online-mart.firebaseapp.com",
-  projectId: "hasa-online-mart",
-  storageBucket: "hasa-online-mart.firebasestorage.app",
-  messagingSenderId: "824071240289",
-  appId: "1:824071240289:web:13d37bff858155535dc820"
 };
 
 const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
 
+
 /* ==================================
-   APP STATE
+   APPLICATION STATE
 ================================== */
 
 let currentUser = null;
-
-let state = {
-  products: [],
-  sales: []
-};
-
+let products = [];
+let sales = [];
 let cart = [];
 
-let unsubscribeProducts = null;
-let unsubscribeSales = null;
+let stopProductsListener = null;
+let stopSalesListener = null;
 
-const $ = id => document.getElementById(id);
+let editingProductId = null;
+let savingProduct = false;
+let completingSale = false;
 
-const money = n =>
-  "Rs. " + Number(n || 0).toLocaleString("en-LK", {
+
+/* ==================================
+   HELPERS
+================================== */
+
+const $ = (id) => document.getElementById(id);
+
+const money = (amount) =>
+  "Rs. " + Number(amount || 0).toLocaleString("en-LK", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   });
 
-const esc = s =>
-  String(s ?? "").replace(/[&<>"']/g, c => ({
+const escapeHTML = (value) =>
+  String(value ?? "").replace(/[&<>"']/g, (char) => ({
     "&": "&amp;",
     "<": "&lt;",
     ">": "&gt;",
     '"': "&quot;",
     "'": "&#39;"
-  })[c]);
+  })[char]);
 
-const todayKey = () => {
-  const d = new Date();
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
+function todayKey() {
+  const date = new Date();
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
-};
-
-const productsRef = () =>
-  collection(db, "users", currentUser.uid, "products");
-
-const salesRef = () =>
-  collection(db, "users", currentUser.uid, "sales");
-
-/* ==================================
-   NOTIFICATIONS
-================================== */
-
-function toast(message) {
-  const el = $("toast");
-
-  el.textContent = message;
-  el.classList.remove("hidden");
-
-  clearTimeout(toast.timer);
-
-  toast.timer = setTimeout(() => {
-    el.classList.add("hidden");
-  }, 3500);
 }
 
-/* ==================================
-   LOGIN
-================================== */
+function showToast(message) {
+  const toast = $("toast");
 
-$("loginForm").addEventListener("submit", async event => {
-  event.preventDefault();
-
-  const button = $("loginButton");
-  const error = $("loginError");
-
-  error.textContent = "";
-  button.disabled = true;
-  button.textContent = "Logging in...";
-
-  try {
-    await signInWithEmailAndPassword(
-      auth,
-      $("loginEmail").value.trim(),
-      $("loginPassword").value
-    );
-  } catch (err) {
-    console.error(err);
-
-    const messages = {
-      "auth/invalid-credential":
-        "Email or password is incorrect.",
-      "auth/invalid-email":
-        "Please enter a valid email address.",
-      "auth/too-many-requests":
-        "Too many attempts. Please try again later.",
-      "auth/network-request-failed":
-        "Check your internet connection."
-    };
-
-    error.textContent =
-      messages[err.code] ||
-      "Login failed. Please check your details and Firebase settings.";
-  } finally {
-    button.disabled = false;
-    button.textContent = "Login";
-  }
-});
-
-/* ==================================
-   AUTH STATE
-================================== */
-
-onAuthStateChanged(auth, user => {
-  if (unsubscribeProducts) {
-    unsubscribeProducts();
-    unsubscribeProducts = null;
-  }
-
-  if (unsubscribeSales) {
-    unsubscribeSales();
-    unsubscribeSales = null;
-  }
-
-  currentUser = user;
-
-  if (!user) {
-    $("loginScreen").classList.remove("hidden");
-    $("appContent").classList.add("hidden");
-
-    state = { products: [], sales: [] };
-    cart = [];
-
+  if (!toast) {
+    alert(message);
     return;
   }
 
-  $("loginScreen").classList.add("hidden");
-  $("appContent").classList.remove("hidden");
+  toast.textContent = message;
+  toast.classList.remove("hidden");
 
-  state = { products: [], sales: [] };
+  clearTimeout(showToast.timer);
+
+  showToast.timer = setTimeout(() => {
+    toast.classList.add("hidden");
+  }, 3000);
+}
+
+function getUserCollection(name) {
+  if (!currentUser) {
+    throw new Error("Please log in first.");
+  }
+
+  return collection(
+    db,
+    "users",
+    currentUser.uid,
+    name
+  );
+}
+
+function getUserDocument(name, id) {
+  if (!currentUser) {
+    throw new Error("Please log in first.");
+  }
+
+  return doc(
+    db,
+    "users",
+    currentUser.uid,
+    name,
+    id
+  );
+}
+
+function getProductById(id) {
+  return products.find((product) => product.id === id);
+}
+
+function stopFirebaseListeners() {
+  if (stopProductsListener) {
+    stopProductsListener();
+    stopProductsListener = null;
+  }
+
+  if (stopSalesListener) {
+    stopSalesListener();
+    stopSalesListener = null;
+  }
+}
+
+
+/* ==================================
+   LOGIN SCREEN
+================================== */
+
+const loginForm = $("loginForm");
+
+if (loginForm) {
+  loginForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const email = $("loginEmail")?.value.trim();
+    const password = $("loginPassword")?.value;
+    const button = $("loginButton");
+    const errorBox = $("loginError");
+
+    if (errorBox) {
+      errorBox.textContent = "";
+    }
+
+    if (!email || !password) {
+      if (errorBox) {
+        errorBox.textContent = "Enter your email and password.";
+      }
+      return;
+    }
+
+    if (button) {
+      button.disabled = true;
+      button.textContent = "Logging in...";
+    }
+
+    try {
+      await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+    } catch (error) {
+      console.error("Login error:", error);
+
+      const messages = {
+        "auth/invalid-credential":
+          "Incorrect email or password.",
+        "auth/user-not-found":
+          "This account was not found.",
+        "auth/wrong-password":
+          "Incorrect password.",
+        "auth/invalid-email":
+          "Please enter a valid email.",
+        "auth/too-many-requests":
+          "Too many attempts. Please try again later.",
+        "auth/network-request-failed":
+          "Internet connection problem."
+      };
+
+      if (errorBox) {
+        errorBox.textContent =
+          messages[error.code] ||
+          "Login failed. Please check your details and Firebase settings.";
+      }
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = "Login";
+      }
+    }
+  });
+}
+
+
+/* ==================================
+   AUTHENTICATION STATE
+================================== */
+
+onAuthStateChanged(auth, (user) => {
+  stopFirebaseListeners();
+
+  currentUser = user;
+
+  products = [];
+  sales = [];
   cart = [];
 
-  renderAll();
-  startFirebaseListeners();
-});
+  if (user) {
+    $("loginScreen")?.classList.add("hidden");
+    $("appContent")?.classList.remove("hidden");
 
-$("logoutBtn").addEventListener("click", async () => {
-  try {
-    await signOut(auth);
-    toast("Logged out successfully.");
-  } catch (err) {
-    console.error(err);
-    toast("Logout failed.");
+    startFirebaseListeners();
+
+    showToast("Logged in successfully.");
+  } else {
+    $("appContent")?.classList.add("hidden");
+    $("loginScreen")?.classList.remove("hidden");
+
+    renderAll();
   }
 });
 
+
 /* ==================================
-   FIREBASE LIVE DATA
+   LOGOUT
+================================== */
+
+$("logoutBtn")?.addEventListener("click", async () => {
+  const confirmed = confirm("Do you want to log out?");
+
+  if (!confirmed) return;
+
+  try {
+    await signOut(auth);
+    showToast("Logged out successfully.");
+  } catch (error) {
+    console.error("Logout error:", error);
+    showToast("Could not log out.");
+  }
+});
+
+
+/* ==================================
+   FIREBASE REALTIME LISTENERS
 ================================== */
 
 function startFirebaseListeners() {
-  unsubscribeProducts = onSnapshot(
-    productsRef(),
+  if (!currentUser) return;
 
-    snapshot => {
-      state.products = snapshot.docs.map(d => ({
-        ...d.data(),
-        id: d.id
+  stopProductsListener = onSnapshot(
+    getUserCollection("products"),
+
+    (snapshot) => {
+      products = snapshot.docs.map((item) => ({
+        id: item.id,
+        ...item.data()
       }));
-
-      // Remove cart items whose products no longer exist.
-      cart = cart.filter(item =>
-        state.products.some(p => p.id === item.id)
-      );
 
       renderAll();
     },
 
-    error => {
-      console.error(error);
-      toast("Could not load products. Check Firestore Rules.");
+    (error) => {
+      console.error("Products listener error:", error);
+      showToast("Could not load products. Check Firestore rules.");
     }
   );
 
-  unsubscribeSales = onSnapshot(
-    salesRef(),
+  stopSalesListener = onSnapshot(
+    getUserCollection("sales"),
 
-    snapshot => {
-      state.sales = snapshot.docs.map(d => ({
-        ...d.data(),
-        docId: d.id
+    (snapshot) => {
+      sales = snapshot.docs.map((item) => ({
+        id: item.id,
+        ...item.data()
       }));
 
-      state.sales.sort((a, b) =>
+      sales.sort((a, b) =>
         Number(b.createdAt || 0) - Number(a.createdAt || 0)
       );
 
       renderAll();
     },
 
-    error => {
-      console.error(error);
-      toast("Could not load sales. Check Firestore Rules.");
+    (error) => {
+      console.error("Sales listener error:", error);
+      showToast("Could not load sales. Check Firestore rules.");
     }
   );
 }
 
+
 /* ==================================
-   TABS
+   PRODUCT FORM
 ================================== */
 
-function switchTab(name) {
-  document.querySelectorAll(".tab").forEach(button => {
-    button.classList.toggle(
-      "active",
-      button.dataset.tab === name
-    );
-  });
+const productForm = $("productForm");
 
-  ["sales", "products", "history"].forEach(tab => {
-    $(tab + "Panel").classList.toggle(
-      "hidden",
-      tab !== name
-    );
+if (productForm) {
+  productForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    if (!currentUser || savingProduct) return;
+
+    const name = $("pName")?.value.trim() || "";
+    const code = $("pCode")?.value.trim() || "";
+    const buyPrice = Number($("pBuy")?.value);
+    const sellPrice = Number($("pSell")?.value);
+    const stock = Number($("pStock")?.value);
+
+    if (!name) {
+      showToast("Enter the product name.");
+      return;
+    }
+
+    if (
+      !Number.isFinite(buyPrice) ||
+      !Number.isFinite(sellPrice) ||
+      !Number.isFinite(stock) ||
+      buyPrice < 0 ||
+      sellPrice < 0 ||
+      stock < 0
+    ) {
+      showToast("Enter valid prices and stock quantity.");
+      return;
+    }
+
+    if (!Number.isInteger(stock)) {
+      showToast("Stock quantity must be a whole number.");
+      return;
+    }
+
+    const productData = {
+      name,
+      code,
+      buyPrice,
+      sellPrice,
+      stock,
+      updatedAt: Date.now()
+    };
+
+    savingProduct = true;
+
+    const saveButton = $("saveProduct");
+
+    if (saveButton) {
+      saveButton.disabled = true;
+      saveButton.textContent = "Saving...";
+    }
+
+    try {
+      if (editingProductId) {
+        await updateDoc(
+          getUserDocument("products", editingProductId),
+          productData
+        );
+
+        showToast("Product updated successfully.");
+      } else {
+        productData.createdAt = Date.now();
+
+        await addDoc(
+          getUserCollection("products"),
+          productData
+        );
+
+        showToast("Product added successfully.");
+      }
+
+      resetProductForm();
+    } catch (error) {
+      console.error("Save product error:", error);
+      showToast("Could not save product. Check Firebase settings.");
+    } finally {
+      savingProduct = false;
+
+      if (saveButton) {
+        saveButton.disabled = false;
+        saveButton.textContent = "Save Product";
+      }
+    }
   });
 }
 
-document.querySelectorAll(".tab").forEach(button => {
-  button.addEventListener("click", () => {
-    switchTab(button.dataset.tab);
-  });
-});
 
 /* ==================================
-   DASHBOARD
+   RESET PRODUCT FORM
 ================================== */
 
-function renderStats() {
-  const todaysSales = state.sales.filter(
-    sale => sale.dateKey === todayKey()
-  );
+function resetProductForm() {
+  productForm?.reset();
 
-  $("todaySales").textContent = money(
-    todaysSales.reduce((sum, sale) => sum + Number(sale.total || 0), 0)
-  );
+  editingProductId = null;
 
-  $("todayProfit").textContent = money(
-    todaysSales.reduce((sum, sale) => sum + Number(sale.profit || 0), 0)
-  );
+  if ($("editId")) {
+    $("editId").value = "";
+  }
 
-  $("productCount").textContent = state.products.length;
+  if ($("saveProduct")) {
+    $("saveProduct").textContent = "Save Product";
+  }
 
-  $("lowStock").textContent = state.products.filter(
-    product => Number(product.stock) <= 5
-  ).length;
+  if ($("cancelEdit")) {
+    $("cancelEdit").classList.add("hidden");
+  }
 }
 
+$("cancelEdit")?.addEventListener("click", resetProductForm);
+
+
 /* ==================================
-   PRODUCTS TABLE
+   EDIT / DELETE PRODUCT
+================================== */
+
+function editProduct(id) {
+  const product = getProductById(id);
+
+  if (!product) {
+    showToast("Product not found.");
+    return;
+  }
+
+  editingProductId = id;
+
+  if ($("editId")) $("editId").value = id;
+  if ($("pName")) $("pName").value = product.name || "";
+  if ($("pCode")) $("pCode").value = product.code || "";
+  if ($("pBuy")) $("pBuy").value = product.buyPrice ?? 0;
+  if ($("pSell")) $("pSell").value = product.sellPrice ?? 0;
+  if ($("pStock")) $("pStock").value = product.stock ?? 0;
+
+  if ($("saveProduct")) {
+    $("saveProduct").textContent = "Update Product";
+  }
+
+  $("cancelEdit")?.classList.remove("hidden");
+
+  productForm?.scrollIntoView({
+    behavior: "smooth",
+    block: "center"
+  });
+}
+
+async function removeProduct(id) {
+  const product = getProductById(id);
+
+  if (!product) return;
+
+  if (
+    !confirm(`Delete "${product.name}" from your products?`)
+  ) {
+    return;
+  }
+
+  try {
+    await deleteDoc(
+      getUserDocument("products", id)
+    );
+
+    cart = cart.filter((item) => item.id !== id);
+
+    renderAll();
+
+    showToast("Product deleted.");
+  } catch (error) {
+    console.error("Delete product error:", error);
+    showToast("Could not delete product.");
+  }
+}
+
+
+/* ==================================
+   PRODUCT TABLE
 ================================== */
 
 function renderProducts() {
-  const tbody = $("productTable");
+  const table = $("productTable");
 
-  if (!state.products.length) {
-    tbody.innerHTML = `
+  if (!table) return;
+
+  if (products.length === 0) {
+    table.innerHTML = `
       <tr>
-        <td colspan="6">No products yet. Add your first product above.</td>
+        <td colspan="6">No products added yet.</td>
       </tr>
     `;
     return;
   }
 
-  tbody.innerHTML = state.products.map(product => `
+  table.innerHTML = products.map((product) => `
     <tr>
-      <td><strong>${esc(product.name)}</strong></td>
-      <td>${esc(product.code || "—")}</td>
-      <td>${money(product.buy)}</td>
-      <td>${money(product.sell)}</td>
-      <td class="${Number(product.stock) <= 5 ? "stock-low" : ""}">
-        ${Number(product.stock)}
-      </td>
+      <td>${escapeHTML(product.name)}</td>
+      <td>${escapeHTML(product.code || "-")}</td>
+      <td>${money(product.buyPrice)}</td>
+      <td>${money(product.sellPrice)}</td>
+      <td>${Number(product.stock || 0)}</td>
       <td>
-        <button class="small-btn" data-edit="${esc(product.id)}">
+        <button type="button"
+          data-action="edit"
+          data-id="${escapeHTML(product.id)}">
           Edit
         </button>
-        <button class="small-btn danger" data-delete="${esc(product.id)}">
+
+        <button type="button"
+          data-action="delete"
+          data-id="${escapeHTML(product.id)}">
           Delete
         </button>
       </td>
@@ -337,464 +538,507 @@ function renderProducts() {
   `).join("");
 }
 
+$("productTable")?.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-action]");
+
+  if (!button) return;
+
+  const id = button.dataset.id;
+
+  if (button.dataset.action === "edit") {
+    editProduct(id);
+  }
+
+  if (button.dataset.action === "delete") {
+    removeProduct(id);
+  }
+});
+
+
 /* ==================================
    PRODUCT SEARCH
 ================================== */
 
-function renderSearch() {
-  const query = $("productSearch").value.trim().toLowerCase();
+$("productSearch")?.addEventListener("input", renderProductSearch);
 
-  const products = state.products.filter(product =>
-    `${product.name} ${product.code || ""}`
-      .toLowerCase()
-      .includes(query)
-  );
+function renderProductSearch() {
+  const input = $("productSearch");
+  const results = $("productResults");
 
-  $("productResults").innerHTML = products.length
-    ? products.map(product => `
-      <div class="product-result">
-        <div>
-          <strong>${esc(product.name)}</strong>
-          <div class="subtext">
-            ${esc(product.code || "No code")}
-            • Stock: ${Number(product.stock)}
-            • ${money(product.sell)}
-          </div>
-        </div>
+  if (!input || !results) return;
 
-        <button
-          class="primary"
-          data-add="${esc(product.id)}"
-          ${Number(product.stock) < 1 ? "disabled" : ""}
-        >
-          Add
-        </button>
-      </div>
-    `).join("")
-    : '<p class="empty">No matching products.</p>';
-}
+  const query = input.value.trim().toLowerCase();
 
-$("productSearch").addEventListener("input", renderSearch);
+  const matchingProducts = products
+    .filter((product) => {
+      const name = String(product.name || "").toLowerCase();
+      const code = String(product.code || "").toLowerCase();
 
-/* ==================================
-   CART
-================================== */
+      return name.includes(query) || code.includes(query);
+    })
+    .slice(0, 30);
 
-function renderCart() {
-  const box = $("cartItems");
-
-  if (!cart.length) {
-    box.innerHTML = '<p class="empty">Your cart is empty.</p>';
-  } else {
-    box.innerHTML = cart.map(item => `
-      <div class="cart-line">
-        <div>
-          <strong>${esc(item.name)}</strong>
-
-          <div class="subtext">${money(item.sell)} each</div>
-
-          <div class="qty">
-            <button data-qty="${esc(item.id)}" data-delta="-1">−</button>
-            <span>${item.qty}</span>
-            <button data-qty="${esc(item.id)}" data-delta="1">+</button>
-            <button class="remove" data-remove="${esc(item.id)}">
-              Remove
-            </button>
-          </div>
-        </div>
-
-        <strong>${money(item.sell * item.qty)}</strong>
-      </div>
-    `).join("");
-  }
-
-  $("cartTotal").textContent = money(
-    cart.reduce((sum, item) => sum + item.sell * item.qty, 0)
-  );
-}
-
-/* ==================================
-   ADD PRODUCT
-================================== */
-
-$("productForm").addEventListener("submit", async event => {
-  event.preventDefault();
-
-  if (!currentUser) return;
-
-  const id = $("editId").value;
-  const name = $("pName").value.trim();
-  const code = $("pCode").value.trim();
-
-  const buy = Number($("pBuy").value);
-  const sell = Number($("pSell").value);
-  const stock = Number($("pStock").value);
-
-  if (
-    !name ||
-    !Number.isFinite(buy) ||
-    !Number.isFinite(sell) ||
-    buy < 0 ||
-    sell < 0 ||
-    !Number.isInteger(stock) ||
-    stock < 0
-  ) {
-    toast("Please enter valid product details.");
+  if (matchingProducts.length === 0) {
+    results.innerHTML = "<p>No matching products found.</p>";
     return;
   }
 
-  const duplicate = state.products.some(product =>
-    product.code &&
-    code &&
-    product.code.toLowerCase() === code.toLowerCase() &&
-    product.id !== id
-  );
+  results.innerHTML = matchingProducts.map((product) => `
+    <button type="button"
+      class="product-result"
+      data-product-id="${escapeHTML(product.id)}"
+      ${Number(product.stock || 0) <= 0 ? "disabled" : ""}>
 
-  if (duplicate) {
-    toast("That product code is already in use.");
-    return;
-  }
+      <strong>${escapeHTML(product.name)}</strong>
+      <span>${money(product.sellPrice)}</span>
+      <small>Stock: ${Number(product.stock || 0)}</small>
+    </button>
+  `).join("");
+}
 
-  const saveButton = $("saveProduct");
-  saveButton.disabled = true;
+$("productResults")?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-product-id]");
 
-  try {
-    const product = { name, code, buy, sell, stock };
+  if (!button) return;
 
-    if (id) {
-      await updateDoc(doc(productsRef(), id), product);
-      toast("Product updated in Firebase.");
-    } else {
-      await addDoc(productsRef(), product);
-      toast("Product saved to Firebase.");
-    }
-
-    resetProductForm();
-  } catch (err) {
-    console.error(err);
-    toast("Could not save product. Check Firebase Rules.");
-  } finally {
-    saveButton.disabled = false;
-  }
+  addToCart(button.dataset.productId);
 });
 
-function resetProductForm() {
-  $("productForm").reset();
-  $("editId").value = "";
-  $("saveProduct").textContent = "Save Product";
-  $("cancelEdit").classList.add("hidden");
-}
-
-$("cancelEdit").addEventListener("click", resetProductForm);
 
 /* ==================================
-   EDIT / DELETE PRODUCTS
+   SHOPPING CART
 ================================== */
 
-$("productTable").addEventListener("click", async event => {
-  const editId = event.target.closest("[data-edit]")?.dataset.edit;
-  const deleteId = event.target.closest("[data-delete]")?.dataset.delete;
+function addToCart(id) {
+  const product = getProductById(id);
 
-  if (editId) {
-    const product = state.products.find(p => p.id === editId);
-    if (!product) return;
-
-    $("editId").value = product.id;
-    $("pName").value = product.name;
-    $("pCode").value = product.code || "";
-    $("pBuy").value = product.buy;
-    $("pSell").value = product.sell;
-    $("pStock").value = product.stock;
-
-    $("saveProduct").textContent = "Update Product";
-    $("cancelEdit").classList.remove("hidden");
-
-    window.scrollTo({ top: 0, behavior: "smooth" });
+  if (!product) {
+    showToast("Product not found.");
+    return;
   }
 
-  if (deleteId) {
-    const product = state.products.find(p => p.id === deleteId);
-    if (!product) return;
+  if (Number(product.stock || 0) <= 0) {
+    showToast("This product is out of stock.");
+    return;
+  }
 
-    if (!confirm(`Delete "${product.name}"? Past sales will remain in history.`)) {
+  const cartItem = cart.find((item) => item.id === id);
+
+  if (cartItem) {
+    if (cartItem.quantity >= Number(product.stock)) {
+      showToast("Not enough stock available.");
       return;
     }
 
-    try {
-      await deleteDoc(doc(productsRef(), deleteId));
-
-      cart = cart.filter(item => item.id !== deleteId);
-
-      renderCart();
-      toast("Product deleted from Firebase.");
-    } catch (err) {
-      console.error(err);
-      toast("Could not delete product.");
-    }
-  }
-});
-
-/* ==================================
-   ADD TO CART
-================================== */
-
-$("productResults").addEventListener("click", event => {
-  const id = event.target.closest("[data-add]")?.dataset.add;
-  if (!id) return;
-
-  const product = state.products.find(p => p.id === id);
-  if (!product) return;
-
-  const existing = cart.find(item => item.id === id);
-  const currentQty = existing ? existing.qty : 0;
-
-  if (currentQty >= Number(product.stock)) {
-    toast("Not enough stock available.");
-    return;
-  }
-
-  if (existing) {
-    existing.qty++;
+    cartItem.quantity += 1;
   } else {
     cart.push({
       id: product.id,
       name: product.name,
-      buy: Number(product.buy),
-      sell: Number(product.sell),
-      qty: 1
+      sellPrice: Number(product.sellPrice || 0),
+      buyPrice: Number(product.buyPrice || 0),
+      quantity: 1
     });
   }
 
   renderCart();
-});
+}
 
-$("cartItems").addEventListener("click", event => {
-  const qtyButton = event.target.closest("[data-qty]");
-  const removeButton = event.target.closest("[data-remove]");
+function changeCartQuantity(id, change) {
+  const item = cart.find((cartItem) => cartItem.id === id);
 
-  if (qtyButton) {
-    const id = qtyButton.dataset.qty;
-    const item = cart.find(i => i.id === id);
-    const product = state.products.find(p => p.id === id);
+  if (!item) return;
 
-    if (!item || !product) return;
+  const product = getProductById(id);
 
-    const nextQty = item.qty + Number(qtyButton.dataset.delta);
+  if (!product) {
+    cart = cart.filter((cartItem) => cartItem.id !== id);
+    renderCart();
+    return;
+  }
 
-    if (nextQty < 1) {
-      cart = cart.filter(i => i.id !== id);
-    } else if (nextQty > Number(product.stock)) {
-      toast("Not enough stock available.");
-      return;
-    } else {
-      item.qty = nextQty;
+  const newQuantity = item.quantity + change;
+
+  if (newQuantity <= 0) {
+    cart = cart.filter((cartItem) => cartItem.id !== id);
+  } else if (newQuantity > Number(product.stock || 0)) {
+    showToast("Not enough stock available.");
+    return;
+  } else {
+    item.quantity = newQuantity;
+  }
+
+  renderCart();
+}
+
+function renderCart() {
+  const container = $("cartItems");
+
+  if (!container) return;
+
+  if (cart.length === 0) {
+    container.innerHTML = "<p>Cart is empty.</p>";
+
+    if ($("cartTotal")) {
+      $("cartTotal").textContent = money(0);
     }
 
-    renderCart();
+    return;
   }
 
-  if (removeButton) {
-    cart = cart.filter(i => i.id !== removeButton.dataset.remove);
+  container.innerHTML = cart.map((item) => `
+    <div class="cart-item">
+      <div>
+        <strong>${escapeHTML(item.name)}</strong>
+        <div>${money(item.sellPrice)} each</div>
+      </div>
+
+      <div class="cart-controls">
+        <button type="button"
+          data-cart-action="minus"
+          data-id="${escapeHTML(item.id)}">−</button>
+
+        <span>${item.quantity}</span>
+
+        <button type="button"
+          data-cart-action="plus"
+          data-id="${escapeHTML(item.id)}">+</button>
+
+        <button type="button"
+          data-cart-action="remove"
+          data-id="${escapeHTML(item.id)}">Remove</button>
+      </div>
+
+      <strong>${money(item.sellPrice * item.quantity)}</strong>
+    </div>
+  `).join("");
+
+  const total = cart.reduce(
+    (sum, item) => sum + item.sellPrice * item.quantity,
+    0
+  );
+
+  if ($("cartTotal")) {
+    $("cartTotal").textContent = money(total);
+  }
+}
+
+$("cartItems")?.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-cart-action]");
+
+  if (!button) return;
+
+  const id = button.dataset.id;
+  const action = button.dataset.cartAction;
+
+  if (action === "minus") {
+    changeCartQuantity(id, -1);
+  }
+
+  if (action === "plus") {
+    changeCartQuantity(id, 1);
+  }
+
+  if (action === "remove") {
+    cart = cart.filter((item) => item.id !== id);
     renderCart();
   }
 });
+
 
 /* ==================================
    COMPLETE SALE
 ================================== */
 
-$("completeSale").addEventListener("click", async () => {
-  if (!currentUser) return;
+$("completeSale")?.addEventListener("click", completeSale);
 
-  if (!cart.length) {
-    toast("Cart is empty.");
+async function completeSale() {
+  if (!currentUser || completingSale) return;
+
+  if (cart.length === 0) {
+    showToast("Cart is empty.");
     return;
   }
 
-  const button = $("completeSale");
-  button.disabled = true;
+  const paymentMethod =
+    $("paymentMethod")?.value || "Cash";
 
-  const items = cart.map(item => ({ ...item }));
+  const saleItems = cart.map((item) => ({
+    productId: item.id,
+    name: item.name,
+    buyPrice: Number(item.buyPrice || 0),
+    sellPrice: Number(item.sellPrice || 0),
+    quantity: Number(item.quantity || 0)
+  }));
 
-  const saleId =
-    "HASA-" + Date.now().toString().slice(-8);
+  const total = saleItems.reduce(
+    (sum, item) => sum + item.sellPrice * item.quantity,
+    0
+  );
 
-  const saleDocument = doc(salesRef());
+  const profit = saleItems.reduce(
+    (sum, item) =>
+      sum + (item.sellPrice - item.buyPrice) * item.quantity,
+    0
+  );
 
-  const now = new Date();
+  const saleDate = new Date();
 
-  const sale = {
-    id: saleId,
-    date: now.toLocaleString(),
-    dateKey: todayKey(),
-    createdAt: Date.now(),
-    payment: $("paymentMethod").value,
-    items,
-    total: 0,
-    profit: 0
-  };
+  completingSale = true;
+
+  const saleButton = $("completeSale");
+
+  if (saleButton) {
+    saleButton.disabled = true;
+    saleButton.textContent = "Processing...";
+  }
 
   try {
-    await runTransaction(db, async transaction => {
-      const freshProducts = [];
+    const userId = currentUser.uid;
 
-      // Read all products before writing any changes.
-      for (const item of items) {
-        const productRef = doc(productsRef(), item.id);
-        const productSnapshot = await transaction.get(productRef);
+    const result = await runTransaction(db, async (transaction) => {
+      const currentCart = saleItems.map((item) => ({
+        ...item
+      }));
 
-        if (!productSnapshot.exists()) {
-          throw new Error(`Product not found: ${item.name}`);
-        }
+      const productRefs = currentCart.map((item) =>
+        doc(db, "users", userId, "products", item.productId)
+      );
 
-        const product = productSnapshot.data();
+      // Read all products before making transaction writes.
+      const productSnapshots = [];
 
-        if (Number(product.stock) < item.qty) {
-          throw new Error(`Insufficient stock for ${item.name}.`);
-        }
-
-        freshProducts.push({
-          ref: productRef,
-          data: product,
-          item
-        });
+      for (const productRef of productRefs) {
+        productSnapshots.push(
+          await transaction.get(productRef)
+        );
       }
 
-      for (const entry of freshProducts) {
-        const product = entry.data;
-        const item = entry.item;
+      for (let i = 0; i < currentCart.length; i++) {
+        const item = currentCart[i];
+        const snapshot = productSnapshots[i];
 
-        sale.total += Number(product.sell) * item.qty;
-        sale.profit +=
-          (Number(product.sell) - Number(product.buy)) * item.qty;
+        if (!snapshot.exists()) {
+          throw new Error(`Product "${item.name}" no longer exists.`);
+        }
 
-        transaction.update(entry.ref, {
-          stock: Number(product.stock) - item.qty
+        const currentProduct = snapshot.data();
+        const currentStock = Number(currentProduct.stock || 0);
+
+        if (currentStock < item.quantity) {
+          throw new Error(
+            `Not enough stock for "${item.name}". Available: ${currentStock}.`
+          );
+        }
+
+        transaction.update(productRefs[i], {
+          stock: currentStock - item.quantity,
+          updatedAt: Date.now()
         });
+
+        item.name = currentProduct.name || item.name;
+        item.buyPrice = Number(currentProduct.buyPrice || 0);
+        item.sellPrice = Number(currentProduct.sellPrice || 0);
       }
 
-      transaction.set(saleDocument, sale);
+      const finalTotal = currentCart.reduce(
+        (sum, item) => sum + item.sellPrice * item.quantity,
+        0
+      );
+
+      const finalProfit = currentCart.reduce(
+        (sum, item) =>
+          sum + (item.sellPrice - item.buyPrice) * item.quantity,
+        0
+      );
+
+      const salesCollection = collection(
+        db,
+        "users",
+        userId,
+        "sales"
+      );
+
+      const saleRef = doc(salesCollection);
+
+      transaction.set(saleRef, {
+        items: currentCart,
+        total: finalTotal,
+        profit: finalProfit,
+        paymentMethod,
+        date: saleDate.toISOString(),
+        dateKey: todayKey(),
+        createdAt: Date.now()
+      });
+
+      return {
+        saleId: saleRef.id,
+        items: currentCart,
+        total: finalTotal,
+        profit: finalProfit
+      };
     });
 
     cart = [];
-
-    $("receipt").classList.add("hidden");
-
     renderCart();
 
-    showReceipt(sale);
+    if ($("productSearch")) {
+      $("productSearch").value = "";
+    }
 
-    toast("Sale saved to Firebase successfully.");
+    renderProductSearch();
 
-    switchTab("sales");
-  } catch (err) {
-    console.error(err);
-    toast(err.message || "Sale failed. Please try again.");
+    if ($("receipt")) {
+      $("receipt").innerHTML = `
+        <div class="receipt-content">
+          <h3>HASA Online Mart</h3>
+          <p>Sale completed successfully</p>
+          <p><strong>Sale ID:</strong> ${escapeHTML(result.saleId)}</p>
+          <p><strong>Date:</strong> ${escapeHTML(saleDate.toLocaleString())}</p>
+          <hr>
+          ${result.items.map((item) => `
+            <div>
+              ${escapeHTML(item.name)} × ${item.quantity}
+              <span>${money(item.sellPrice * item.quantity)}</span>
+            </div>
+          `).join("")}
+          <hr>
+          <p><strong>Total: ${money(result.total)}</strong></p>
+          <p>Payment: ${escapeHTML(paymentMethod)}</p>
+          <p>Thank you!</p>
+        </div>
+      `;
+
+      $("receipt").classList.remove("hidden");
+    }
+
+    showToast("Sale completed and saved to Firebase.");
+  } catch (error) {
+    console.error("Complete sale error:", error);
+    showToast(error.message || "Sale failed. Please try again.");
   } finally {
-    button.disabled = false;
+    completingSale = false;
+
+    if (saleButton) {
+      saleButton.disabled = false;
+      saleButton.textContent = "Complete Sale";
+    }
   }
-});
-
-/* ==================================
-   RECEIPT PREVIEW
-================================== */
-
-function showReceipt(sale) {
-  const element = $("receipt");
-
-  element.innerHTML = `
-    <h3>HASA Online Mart</h3>
-    <p>Sales Receipt Preview</p>
-    <p>${esc(sale.date)}</p>
-    <p>Sale ID: ${esc(sale.id)}</p>
-    <hr>
-
-    <ul>
-      ${sale.items.map(item => `
-        <li>
-          ${esc(item.name)} × ${item.qty}
-          — ${money(Number(item.sell) * item.qty)}
-        </li>
-      `).join("")}
-    </ul>
-
-    <p>Payment: ${esc(sale.payment)}</p>
-
-    <div class="receipt-total">
-      Total: ${money(sale.total)}
-    </div>
-
-    <p class="subtext">
-      Screen preview only — no printing or receipt download.
-    </p>
-  `;
-
-  element.classList.remove("hidden");
-
-  element.scrollIntoView({
-    behavior: "smooth",
-    block: "nearest"
-  });
 }
+
 
 /* ==================================
    SALES HISTORY
 ================================== */
 
 function renderHistory() {
-  const tbody = $("historyTable");
+  const table = $("historyTable");
 
-  if (!state.sales.length) {
-    tbody.innerHTML = `
+  if (!table) return;
+
+  if (sales.length === 0) {
+    table.innerHTML = `
       <tr>
-        <td colspan="7">No completed sales yet.</td>
+        <td colspan="5">No sales recorded yet.</td>
       </tr>
     `;
     return;
   }
 
-  tbody.innerHTML = state.sales.map(sale => `
-    <tr>
-      <td>${esc(sale.date)}</td>
-      <td>${esc(sale.id)}</td>
-      <td>${sale.items.reduce((sum, item) => sum + Number(item.qty), 0)}</td>
-      <td>${esc(sale.payment)}</td>
-      <td>${money(sale.total)}</td>
-      <td>${money(sale.profit)}</td>
-      <td>
-        <button class="small-btn" data-view-sale="${esc(sale.docId)}">
-          View
-        </button>
-      </td>
-    </tr>
-  `).join("");
+  table.innerHTML = sales.map((sale) => {
+    const date = sale.date
+      ? new Date(sale.date).toLocaleString()
+      : new Date(Number(sale.createdAt || 0)).toLocaleString();
+
+    const itemCount = Array.isArray(sale.items)
+      ? sale.items.reduce(
+          (sum, item) => sum + Number(item.quantity || 0),
+          0
+        )
+      : 0;
+
+    return `
+      <tr>
+        <td>${escapeHTML(date)}</td>
+        <td>${itemCount}</td>
+        <td>${money(sale.total)}</td>
+        <td>${money(sale.profit)}</td>
+        <td>${escapeHTML(sale.paymentMethod || "Cash")}</td>
+      </tr>
+    `;
+  }).join("");
 }
 
-$("historyTable").addEventListener("click", event => {
-  const documentId =
-    event.target.closest("[data-view-sale]")?.dataset.viewSale;
 
-  if (!documentId) return;
+/* ==================================
+   DASHBOARD STATS
+================================== */
 
-  const sale = state.sales.find(s => s.docId === documentId);
+function renderStats() {
+  const today = todayKey();
 
-  if (sale) {
-    switchTab("sales");
-    showReceipt(sale);
+  const todaysSales = sales.filter((sale) => {
+    if (sale.dateKey) {
+      return sale.dateKey === today;
+    }
+
+    return sale.date
+      ? new Date(sale.date).toDateString() === new Date().toDateString()
+      : false;
+  });
+
+  const totalSales = todaysSales.reduce(
+    (sum, sale) => sum + Number(sale.total || 0),
+    0
+  );
+
+  const totalProfit = todaysSales.reduce(
+    (sum, sale) => sum + Number(sale.profit || 0),
+    0
+  );
+
+  const lowStock = products.filter(
+    (product) => Number(product.stock || 0) <= 5
+  ).length;
+
+  if ($("todaySales")) {
+    $("todaySales").textContent = money(totalSales);
   }
-});
+
+  if ($("todayProfit")) {
+    $("todayProfit").textContent = money(totalProfit);
+  }
+
+  if ($("productCount")) {
+    $("productCount").textContent = products.length;
+  }
+
+  if ($("lowStock")) {
+    $("lowStock").textContent = lowStock;
+  }
+
+  // Support the alternate ID used in some versions of the HTML.
+  if ($("lowStockItems")) {
+    $("lowStockItems").textContent = lowStock;
+  }
+}
+
 
 /* ==================================
    BACKUP DATA
 ================================== */
 
-$("exportBtn").addEventListener("click", () => {
+$("exportBtn")?.addEventListener("click", () => {
+  if (!currentUser) {
+    showToast("Please log in first.");
+    return;
+  }
+
   const backup = {
-    app: "HASA Online Mart POS",
-    version: 2,
+    shop: "HASA Online Mart",
     exportedAt: new Date().toISOString(),
-    products: state.products,
-    sales: state.sales
+    products,
+    sales
   };
 
   const blob = new Blob(
@@ -806,7 +1050,7 @@ $("exportBtn").addEventListener("click", () => {
   const link = document.createElement("a");
 
   link.href = url;
-  link.download = "HASA-Online-Mart-Backup.json";
+  link.download = `hasa-pos-backup-${todayKey()}.json`;
 
   document.body.appendChild(link);
   link.click();
@@ -814,17 +1058,25 @@ $("exportBtn").addEventListener("click", () => {
 
   URL.revokeObjectURL(url);
 
-  toast("Backup downloaded.");
+  showToast("Backup downloaded.");
 });
+
 
 /* ==================================
    RENDER EVERYTHING
 ================================== */
 
 function renderAll() {
-  renderStats();
   renderProducts();
-  renderSearch();
+  renderProductSearch();
   renderCart();
   renderHistory();
+  renderStats();
 }
+
+
+/* ==================================
+   INITIAL RENDER
+================================== */
+
+renderAll();
