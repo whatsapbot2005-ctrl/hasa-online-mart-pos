@@ -206,10 +206,10 @@ if (loginForm) {
       };
 
       if (errorBox) {
-        errorBox.textContent =
-          messages[error.code] ||
-          "Login failed. Please check your details and Firebase settings.";
-      }
+  errorBox.textContent =
+    `Firebase Error: ${error.code} — ${error.message}`;
+}
+      
     } finally {
       if (button) {
         button.disabled = false;
