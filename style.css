@@ -18,3 +18,26 @@ button{cursor:pointer;font:inherit}.primary,.secondary,.small-btn{border:0;borde
   object-fit: contain;
   border-radius: 10px;
 }
+
+/* Cart quantity buttons alignment */
+#cartItems button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  min-height: 36px;
+  margin: 4px 3px 4px 0;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 15px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+#cartItems {
+  line-height: 1.8;
+}
+
+#cartItems button + button {
+  margin-left: 3px;
+  }
