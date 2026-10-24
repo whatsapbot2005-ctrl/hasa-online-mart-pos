@@ -1076,6 +1076,41 @@ function renderAll() {
 
 
 /* ==================================
+   TAB NAVIGATION
+================================== */
+
+document.querySelectorAll(".tab").forEach((button) => {
+  button.addEventListener("click", () => {
+    const tabName = button.dataset.tab;
+
+    // Update active tab button
+    document.querySelectorAll(".tab").forEach((tab) => {
+      tab.classList.remove("active");
+    });
+
+    button.classList.add("active");
+
+    // Hide all tab panels
+    document.querySelectorAll(".tab-panel").forEach((panel) => {
+      panel.classList.add("hidden");
+    });
+
+    // Show selected panel
+    const selectedPanel = document.getElementById(
+      tabName + "Panel"
+    );
+
+    if (selectedPanel) {
+      selectedPanel.classList.remove("hidden");
+    }
+
+    // Refresh content
+    renderAll();
+  });
+});
+
+
+/* ==================================
    INITIAL RENDER
 ================================== */
 
