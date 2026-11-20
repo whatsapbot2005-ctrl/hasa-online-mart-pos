@@ -747,6 +747,164 @@ $("cartItems")?.addEventListener("click", (event) => {
 
 
 /* ==================================
+   DOWNLOAD RECEIPT AS PDF
+================================== */
+
+function downloadReceiptPDF(sale) {
+  const receiptWindow = window.open("", "_blank");
+
+  if (!receiptWindow) {
+    showToast("Allow pop-ups to download your receipt.");
+    return;
+  }
+
+  const itemsHTML = sale.items.map(item => `
+    <tr>
+      <td>${escapeHTML(item.name)}</td>
+      <td>${Number(item.quantity)}</td>
+      <td>Rs. ${Number(item.sellPrice).toFixed(2)}</td>
+      <td>
+        Rs. ${(item.sellPrice * item.quantity).toFixed(2)}
+      </td>
+    </tr>
+  `).join("");
+
+  receiptWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>HASA Online Mart Receipt</title>
+
+      <style>
+        body {
+          font-family: Arial, sans-serif;
+          padding: 20px;
+          color: #111;
+          max-width: 420px;
+          margin: auto;
+        }
+
+        h1 {
+          text-align: center;
+          font-size: 24px;
+          margin-bottom: 5px;
+        }
+
+        .subtitle {
+          text-align: center;
+          color: #555;
+        }
+
+        .info {
+          margin-top: 20px;
+          font-size: 13px;
+        }
+
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-top: 20px;
+        }
+
+        th, td {
+          padding: 8px 4px;
+          border-bottom: 1px solid #ddd;
+          text-align: left;
+          font-size: 12px;
+        }
+
+        .total {
+          text-align: right;
+          font-size: 20px;
+          font-weight: bold;
+          margin-top: 20px;
+        }
+
+        .thanks {
+          text-align: center;
+          margin-top: 30px;
+          font-size: 14px;
+        }
+
+        .download-btn {
+          display: block;
+          width: 100%;
+          padding: 12px;
+          margin-top: 20px;
+          background: #111;
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-size: 16px;
+        }
+
+        @media print {
+          .download-btn {
+            display: none;
+          }
+
+          body {
+            padding: 0;
+          }
+        }
+      </style>
+    </head>
+
+    <body>
+
+      <h1>HASA ONLINE MART</h1>
+      <p class="subtitle">SALES RECEIPT</p>
+
+      <div class="info">
+        <p><strong>Receipt No:</strong> ${escapeHTML(sale.saleId)}</p>
+        <p><strong>Date:</strong> ${escapeHTML(sale.date)}</p>
+        <p><strong>Payment:</strong> ${escapeHTML(sale.paymentMethod)}</p>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Qty</th>
+            <th>Price</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          ${itemsHTML}
+        </tbody>
+      </table>
+
+      <div class="total">
+        TOTAL: Rs. ${Number(sale.total).toFixed(2)}
+      </div>
+
+      <div class="thanks">
+        <p>Thank you for shopping with us!</p>
+        <p>HASA Online Mart ❤️</p>
+      </div>
+
+      <button class="download-btn" onclick="window.print()">
+        Download / Save PDF
+      </button>
+
+      <script>
+        window.onload = function() {
+          setTimeout(() => window.print(), 500);
+        };
+      <\/script>
+
+    </body>
+    </html>
+  `);
+
+  receiptWindow.document.close();
+}
+
+
+/* ==================================
    COMPLETE SALE
 ================================== */
 
