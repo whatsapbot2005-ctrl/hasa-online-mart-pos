@@ -1046,29 +1046,58 @@ async function completeSale() {
 
     renderProductSearch();
 
-    if ($("receipt")) {
-      $("receipt").innerHTML = `
-        <div class="receipt-content">
-          <h3>HASA Online Mart</h3>
-          <p>Sale completed successfully</p>
-          <p><strong>Sale ID:</strong> ${escapeHTML(result.saleId)}</p>
-          <p><strong>Date:</strong> ${escapeHTML(saleDate.toLocaleString())}</p>
-          <hr>
-          ${result.items.map((item) => `
-            <div>
-              ${escapeHTML(item.name)} × ${item.quantity}
-              <span>${money(item.sellPrice * item.quantity)}</span>
-            </div>
-          `).join("")}
-          <hr>
-          <p><strong>Total: ${money(result.total)}</strong></p>
-          <p>Payment: ${escapeHTML(paymentMethod)}</p>
-          <p>Thank you!</p>
-        </div>
-      `;
+if ($("receipt")) {
+  lastCompletedSale = {
+    saleId: result.saleId,
+    items: result.items,
+    total: result.total,
+    date: saleDate.toLocaleString(),
+    paymentMethod: paymentMethod
+  };
 
-      $("receipt").classList.remove("hidden");
-    }
+  $("receipt").innerHTML = `
+    <div class="receipt-content">
+      <h3>🛒 HASA Online Mart</h3>
+      <h4>Sale Completed Successfully</h4>
+
+      <p>
+        <strong>Receipt No:</strong>
+        ${escapeHTML(result.saleId)}
+      </p>
+
+      <p>
+        <strong>Date:</strong>
+        ${escapeHTML(saleDate.toLocaleString())}
+      </p>
+
+      <hr>
+
+      ${result.items.map((item) => `
+        <div style="display:flex;justify-content:space-between;gap:10px;margin:8px 0;">
+          <span>
+            ${escapeHTML(item.name)} × ${item.quantity}
+          </span>
+          <span>
+            ${money(item.sellPrice * item.quantity)}
+          </span>
+        </div>
+      `).join("")}
+
+      <hr>
+
+      <h3>Total: ${money(result.total)}</h3>
+      <p>Payment: ${escapeHTML(paymentMethod)}</p>
+
+      <p>Thank you for shopping with us! ❤️</p>
+
+      <button type="button" id="downloadReceiptBtn" class="primary">
+        Download Receipt PDF
+      </button>
+    </div>
+  `;
+
+  $("receipt").classList.remove("hidden");
+}
 
     showToast("Sale completed and saved to Firebase.");
   } catch (error) {
