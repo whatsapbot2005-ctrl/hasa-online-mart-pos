@@ -1,22 +1,53 @@
-HASA Online Mart POS — Starter Version
+🛒 HASA Online Mart – POS System
 
-FILES
-- index.html: main screen
-- style.css: design
-- app.js: functionality
+A modern, simple, and user-friendly Point of Sale (POS) and inventory management system developed for HASA Online Mart.
 
-HOW TO USE
-1. Extract the ZIP file.
-2. Open index.html in a modern browser.
-3. Open Products & Stock and add products.
-4. Go to New Sale, search for products and add them to the cart.
-5. Complete the sale. A receipt preview appears on screen only.
-6. Use Backup Data to download a JSON backup of products and sales.
+Manage products, track stock, record sales, calculate profits, and monitor your shop's daily performance using a clean and responsive interface.
 
-IMPORTANT
-- Data is saved in the browser's local storage on the current device/browser.
-- This starter version does not automatically sync data between phone and computer.
-- Keep backups in a safe place. Clearing browser data may erase saved records.
-- Receipt printing and receipt downloading are not provided.
-- The Backup Data button downloads your system data, not a receipt.
-- For real business use across devices, add an online database and authentication in a later version.
+✨ Features
+
+- 🔐 Secure Firebase Authentication
+- 📦 Product & inventory management
+- ➕ Add, edit, and delete products
+- 🏷️ Product codes and pricing management
+- 🛒 Shopping cart & checkout system
+- 💰 Sales tracking
+- 📊 Daily sales & profit overview
+- ⚠️ Low-stock alerts
+- 🧾 Sales receipt generation & download
+- ☁️ Cloud database powered by Firebase Firestore
+- 📱 Responsive interface
+
+🛠️ Technologies Used
+
+- HTML5
+- CSS3
+- JavaScript (ES Modules)
+- Firebase Authentication
+- Firebase Firestore Database
+
+☁️ Firebase Integration
+
+HASA Online Mart POS uses Firebase for:
+
+- User authentication
+- Cloud-based product storage
+- Sales data storage
+- Real-time database synchronization
+
+📱 Project
+
+Project Name: HASA Online Mart POS
+Project Type: Point of Sale & Inventory Management
+Developer: HASA Online Mart
+
+🎯 Purpose
+
+This project is designed to make retail shop management easier by combining sales management, product inventory, and business statistics into one simple system.
+
+---
+
+<p align="center">
+  🛍️ <b>HASA Online Mart</b><br>
+  <i>Smart Shopping. Better Service.</i>
+</p>
