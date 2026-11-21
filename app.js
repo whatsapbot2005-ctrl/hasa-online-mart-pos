@@ -48,6 +48,7 @@ let currentUser = null;
 let products = [];
 let sales = [];
 let cart = [];
+let lastCompletedSale = null;
 
 let stopProductsListener = null;
 let stopSalesListener = null;
@@ -902,6 +903,14 @@ function downloadReceiptPDF(sale) {
 
   receiptWindow.document.close();
 }
+
+$("receipt")?.addEventListener("click", (event) => {
+  if (event.target.closest("#downloadReceiptBtn")) {
+    if (lastCompletedSale) {
+      downloadReceiptPDF(lastCompletedSale);
+    }
+  }
+});
 
 
 /* ==================================
